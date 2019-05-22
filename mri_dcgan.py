@@ -80,7 +80,7 @@ class Generator(torch.nn.Module):
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
             # padd = (1,1,  1)
-        self.cube_len = 4
+        self.cube_len = 1
 
         # z: 1 -> 2 -> 4 -> 8 -> ... -> 8 
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
@@ -456,9 +456,12 @@ for epoch in range(opt.n_epochs):
 
         # Generate a batch of images
         gen_imgs = generator(z)
+        print("generated images")
 
         # Loss measures generator's ability to fool the discriminator
         g_loss = adversarial_loss(discriminator(gen_imgs), valid)
+
+        print("calculated g_loss")
 
         g_loss.backward()
         optimizer_G.step()

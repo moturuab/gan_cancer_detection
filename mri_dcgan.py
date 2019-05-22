@@ -76,12 +76,11 @@ class Generator(torch.nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
         # self.args = args
-        self.cube_len = 1
 
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
             # padd = (1,1,  1)
-
+        self.cube_len = 4
 
         # z: 1 -> 2 -> 4 -> 8 -> ... -> 8 
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
@@ -179,6 +178,8 @@ class Generator(torch.nn.Module):
 
 
 
+
+
 class _DenseLayer(nn.Sequential):
     def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):
         super(_DenseLayer, self).__init__()
@@ -217,55 +218,57 @@ class _Transition(nn.Sequential):
         self.add_module('pool', nn.AvgPool3d(kernel_size=2, stride=2))
 
 
-class DenseNet3D(nn.Module):
-    r"""Densenet-BC model class, based on
-    `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`
-    Args:
-        growth_rate (int) - how many filters to add each layer (`k` in paper)
-        block_config (list of 4 ints) - how many layers in each pooling block
-        num_init_features (int) - the number of filters to learn in the first convolution layer
-        bn_size (int) - multiplicative factor for number of bottle neck layers
-          (i.e. bn_size * k features in the bottleneck layer)
-        drop_rate (float) - dropout rate after each dense layer
-        num_classes (int) - number of classification classes
-    """
-    def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
-                 num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
+# class DenseNet3D(nn.Module):
+#     r"""Densenet-BC model class, based on
+#     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`
+#     Args:
+#         growth_rate (int) - how many filters to add each layer (`k` in paper)
+#         block_config (list of 4 ints) - how many layers in each pooling block
+#         num_init_features (int) - the number of filters to learn in the first convolution layer
+#         bn_size (int) - multiplicative factor for number of bottle neck layers
+#           (i.e. bn_size * k features in the bottleneck layer)
+#         drop_rate (float) - dropout rate after each dense layer
+#         num_classes (int) - number of classification classes
+#     """
+#     def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
+#                  num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
 
-        super(DenseNet3D, self).__init__()
+#         super(DenseNet3D, self).__init__()
 
-        # First convolution
-        self.features = nn.Sequential(OrderedDict([
-            ('conv0', nn.Conv3d(1, num_init_features, kernel_size=(3, 7, 7), stride=2, padding=(1, 3, 3), bias=False)),
-            ('norm0', nn.BatchNorm3d(num_init_features)),
-            ('relu0', nn.ReLU(inplace=True)),
-            ('pool0', nn.MaxPool3d(kernel_size=3, stride=2, padding=1)),
-        ]))
+#         # First convolution
+#         self.features = nn.Sequential(OrderedDict([
+#             ('conv0', nn.Conv3d(1, num_init_features, kernel_size=(3, 7, 7), stride=2, padding=(1, 3, 3), bias=False)),
+#             ('norm0', nn.BatchNorm3d(num_init_features)),
+#             ('relu0', nn.ReLU(inplace=True)),
+#             ('pool0', nn.MaxPool3d(kernel_size=3, stride=2, padding=1)),
+#         ]))
 
-        # Each denseblock
-        num_features = num_init_features
-        for i, num_layers in enumerate(block_config):
-            block = _DenseBlock(num_layers=num_layers, num_input_features=num_features,
-                                bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
-            self.features.add_module('denseblock%d' % (i + 1), block)
-            num_features = num_features + num_layers * growth_rate
-            if i != len(block_config) - 1:
-                trans = _Transition(num_input_features=num_features, num_output_features=num_features // 2)
-                self.features.add_module('transition%d' % (i + 1), trans)
-                num_features = num_features // 2
+#         # Each denseblock
+#         num_features = num_init_features
+#         for i, num_layers in enumerate(block_config):
+#             block = _DenseBlock(num_layers=num_layers, num_input_features=num_features,
+#                                 bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
+#             self.features.add_module('denseblock%d' % (i + 1), block)
+#             num_features = num_features + num_layers * growth_rate
+#             if i != len(block_config) - 1:
+#                 trans = _Transition(num_input_features=num_features, num_output_features=num_features // 2)
+#                 self.features.add_module('transition%d' % (i + 1), trans)
+#                 num_features = num_features // 2
 
-        # Final batch norm
-        self.features.add_module('norm5', nn.BatchNorm3d(num_features))
+#         # Final batch norm
+#         self.features.add_module('norm5', nn.BatchNorm3d(num_features))
 
-        # Linear layer
-        self.classifier = nn.Linear(num_features, num_classes)
+#         # Linear layer
+#         self.classifier = nn.Linear(num_features, num_classes)
 
-    def forward(self, x):
-        features = self.features(x)
-        out = F.relu(features, inplace=True)
-        out = F.avg_pool3d(out, kernel_size=(1,7,7)).view(features.size(0), -1)
-        out = self.classifier(out)
-        return out
+#     def forward(self, x):
+#         features = self.features(x)
+#         out = F.relu(features, inplace=True)
+#         out = F.avg_pool3d(out, kernel_size=(1,7,7)).view(features.size(0), -1)
+#         out = self.classifier(out)
+        # return out
+
+
 
 # class Discriminator(nn.Module):
 #     def __init__(self):
@@ -296,6 +299,91 @@ class DenseNet3D(nn.Module):
 #         return validity
 
 
+
+
+    # inverse of generator
+    # z: 1 -> 2 -> 4 -> 8 -> ... -> 8 
+    # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
+    # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+
+
+        self.layer1 = torch.nn.Sequential(
+            torch.nn.Conv3d(1, 8, kernel_size=3, stride=1, padding=(1, 1, 1)),
+            torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
+            torch.nn.ReLU()
+        ) # (4, 724, 256)
+
+        self.layer2 = torch.nn.Sequential(
+            torch.nn.Conv3d(8, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
+            torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
+            torch.nn.ReLU()
+        ) # (2, 362, 128)
+
+        self.layer3 = torch.nn.Sequential(
+            torch.nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
+            torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
+            torch.nn.ReLU()
+        ) # (1, 181, 64)
+        self.layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(16, 16, kernel_size=3, stride=(1, 2, 1), padding=(1, 0, 1)),
+            torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
+            torch.nn.ReLU()
+        ) # (1, 45, 32)
+        self.layer5 = torch.nn.Sequential(
+            torch.nn.Conv3d(16, 16, kernel_size=3, stride=2, padding=(1, 1, 1)),
+            torch.nn.ReLU()
+        ) # (1, 23, 16)
+
+        self.fc1 = torch.nn.Sequential(
+            torch.nn.Linear(5888, 128, bias=True),
+            torch.nn.ReLU()
+        )
+
+        self.fc2 = torch.nn.Sequential(
+            torch.nn.Linear(128, 128, bias=True),
+            torch.nn.ReLU()
+        )
+
+        self.fc3 = torch.nn.Sequential(
+            torch.nn.Linear(128, 2, bias=True),
+            torch.nn.Sigmoid()
+        )
+        
+        # # The height and width of downsampled image
+        # ds_size = opt.img_size // 2 ** 4
+        # self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
+
+    def forward(self, img):
+        # out = x.view(-1, opt.latent_dim, 1, 1, 1)
+        out = self.layer1(img)
+        print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
+        out = self.layer2(out)
+        print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer3(out)
+        print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+
+        out = self.layer4(out)
+
+        print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer5(out)
+        print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+
+
+        out = self.fc1(out)
+        print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.fc2(out)
+        print("after fc2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.fc3(out)
+        print("after fc3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+
+
+        return validity
+
+
+
 # Loss function
 adversarial_loss = torch.nn.BCELoss()
 
@@ -304,7 +392,7 @@ adversarial_loss = torch.nn.BCELoss()
 # discriminator = Discriminator()
 
 generator = Generator()
-discriminator = DenseNet3D(num_classes=2)
+discriminator = Discriminator()
 
 if cuda:
     generator.cuda()

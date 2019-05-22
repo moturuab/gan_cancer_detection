@@ -311,22 +311,22 @@ class Discriminator(nn.Module):
 
 
         self.layer1 = torch.nn.Sequential(
-            torch.nn.Conv3d(1, 8, kernel_size=3, stride=1, padding=(1, 1, 1)),
-            torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
-            torch.nn.ReLU()
-        ) # (4, 724, 256)
-
-        self.layer2 = torch.nn.Sequential(
-            torch.nn.Conv3d(8, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
+            torch.nn.Conv3d(1, 8, kernel_size=3, stride=2, padding=(1, 1, 1)),
             torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
             torch.nn.ReLU()
         ) # (2, 362, 128)
 
-        self.layer3 = torch.nn.Sequential(
-            torch.nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
-            torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
+        self.layer2 = torch.nn.Sequential(
+            torch.nn.Conv3d(8, 16, kernel_size=3, stride=2, padding=(1, 1, 1)),
+            # torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
             torch.nn.ReLU()
         ) # (1, 181, 64)
+
+        # self.layer3 = torch.nn.Sequential(
+        #     torch.nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
+        #     torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
+        #     torch.nn.ReLU()
+        # ) # (1, 181, 64)
         self.layer4 = torch.nn.Sequential(
             torch.nn.Conv3d(16, 16, kernel_size=3, stride=(1, 2, 1), padding=(1, 0, 1)),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
@@ -362,8 +362,8 @@ class Discriminator(nn.Module):
         print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
         out = self.layer2(out)
         print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
-        out = self.layer3(out)
-        print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # out = self.layer3(out)
+        # print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
         out = self.layer4(out)
 

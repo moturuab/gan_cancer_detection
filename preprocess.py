@@ -6,6 +6,7 @@ import pandas as pd
 from skimage import exposure
 from skimage import restoration
 from matplotlib import pyplot as plt
+import SimpleITK as sitk
 
 
 def remove_clips(volume):
@@ -53,7 +54,15 @@ def remove_noise(volume):
         #volume[i] = restoration.denoise_nl_means(volume[i])                       # < BAD
     return volume
 
-
+def correct_bias_field(volume):
+    corrector = sitk.N4BiasFieldCorrectionImageFilter()
+    for i in range(8):
+        volume_image = sitk.GetImageFromArray(volume[i])
+        mask_image = sitk.OtsuThreshold( volume_image, 0, 1, 200 )
+        corrected_image = corrector.Execute(volume_image,mask_image)
+        volume[i] = sitk.GetArrayFromImage(corrected_image)
+    return volume
+        
 def stitch_volume(dir):
     nz = len(os.listdir(dir))
     temp = pydicom.dcmread(os.path.join(dir, os.listdir(dir)[0]))
@@ -77,12 +86,14 @@ def main():
     volume = preprocess(stitch_volume(dir))
     volume = correct_contrast(volume) # contrast correction
     volume = remove_noise(volume)
+    # volume = correct_bias_field(volume)
     volume2 = preprocess(stitch_volume(dir))
     for i in range(8):
         plt.imshow(volume2[i], cmap='gray', vmin=0, vmax=1)
         plt.show()
         plt.imshow(volume[i], cmap='gray', vmin=0, vmax=1)
         plt.show()
+    np.save('./wbmri/volume1.npy',volume2)
 
 
 if __name__ == "__main__":

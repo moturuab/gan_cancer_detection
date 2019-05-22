@@ -76,37 +76,77 @@ class Generator(torch.nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
         # self.args = args
-        self.cube_len = 64
-        self.cube_len = 64
+        self.cube_len = 1
 
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
-            # padd = (1,1,1)
+            # padd = (1,1,  1)
+
+
+        # z: 1 -> 2 -> 4 -> 8 -> ... -> 8 
+        # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
+        # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
 
         self.layer1 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(opt.latent_dim, self.cube_len*8, kernel_size=4, stride=(1, 1, 1), padding=(1, 0, 0)),
+            torch.nn.ConvTranspose3d(opt.latent_dim, self.cube_len*8, kernel_size=4, stride=(1, 1, 1), padding=(1, 1, 1)),
             torch.nn.BatchNorm3d(self.cube_len*8),
             torch.nn.ReLU()
-        )
+        ) # (2, 2, 2)
+
         self.layer2 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.cube_len*8, self.cube_len*4, kernel_size=4, stride=(1, 3, 3), padding=(0, 1, 1)),
+            torch.nn.ConvTranspose3d(self.cube_len*8, self.cube_len*4, kernel_size=4, stride=(2, 2, 2), padding=(1, 0, 1)),
             torch.nn.BatchNorm3d(self.cube_len*4),
             torch.nn.ReLU()
-        )
+        ) # (4, 6, 4)
+
         self.layer3 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.cube_len*4, self.cube_len*2, kernel_size=4, stride=(1, 3, 3), padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.cube_len*4, self.cube_len*2, kernel_size=4, stride=(2, 2, 2), padding=(1, 1, 1)),
             torch.nn.BatchNorm3d(self.cube_len*2),
             torch.nn.ReLU()
-        )
+        ) # (8, 12, 8)
         self.layer4 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.cube_len*2, self.cube_len, kernel_size=4, stride=(1, 3, 3), padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.cube_len*2, self.cube_len, kernel_size=(5, 4, 4), stride=(1, 2, 2), padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.cube_len),
             torch.nn.ReLU()
-        )
+        ) # (8, 24, 16)
+
+        # keep z dim constant (at 8)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.cube_len, 1, kernel_size=4, stride=(1, 3, 3), padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 5, 4), stride=(1, 2, 2), padding=(2, 3, 1)), 
+            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ReLU()
+        ) # (8, 45, 32)
+
+        self.layer6 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 4, 4), stride=(1, 2, 2), padding=(2, 1, 1)),            
+            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ReLU()
+        ) # (8, 90, 64)
+
+        self.layer7 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 5, 4), stride=(1, 2, 2), padding=(2, 1, 1)),            
+            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ReLU()
+        ) # (8, 181, 128)
+
+        self.layer8 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 4, 4), stride=(1, 2, 2), padding=(2, 1, 1)),            
+            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ReLU()
+        ) # (8, 362, 256)
+
+        self.layer9 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 4, 4), stride=(1, 2, 2), padding=(2, 1, 1)),            
+            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ReLU()
+
+        ) # (8, 724, 512)
+
+        self.layer10 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),              
+            torch.nn.BatchNorm3d(self.cube_len),
             torch.nn.Sigmoid()
-        )
+        ) # (8, 1448, 512)
 
     def forward(self, x):
         out = x.view(-1, opt.latent_dim, 1, 1, 1)
@@ -116,13 +156,28 @@ class Generator(torch.nn.Module):
         out = self.layer2(out)
         print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer3(out)
-        #print(out.size())  # torch.Size([100, 128, 16, 16, 16])
+        print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+
         out = self.layer4(out)
-        #print(out.size())  # torch.Size([100, 64, 32, 32, 32])
+
+        print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer5(out)
-        #print(out.size())  # torch.Size([100, 1, 64, 64, 64])
+        print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+
+        out = self.layer6(out)
+        print("after layer 6:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer7(out)
+        print("after layer 7:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer8(out)
+        print("after layer 8:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer9(out)
+        print("after layer 9:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        out = self.layer10(out)
+        print("after layer 10:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
         return out
+
+
 
 class _DenseLayer(nn.Sequential):
     def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):

@@ -298,7 +298,9 @@ class _Transition(nn.Sequential):
 
 #         return validity
 
-
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
 
 
     # inverse of generator
@@ -337,6 +339,8 @@ class Discriminator(nn.Module):
             torch.nn.ReLU()
         ) # (1, 23, 16)
 
+        self.flatten = Flatten()
+
         self.fc1 = torch.nn.Sequential(
             torch.nn.Linear(5888, 128, bias=True),
             torch.nn.ReLU()
@@ -348,7 +352,7 @@ class Discriminator(nn.Module):
         )
 
         self.fc3 = torch.nn.Sequential(
-            torch.nn.Linear(128, 2, bias=True),
+            torch.nn.Linear(128, 1, bias=True),
             torch.nn.Sigmoid()
         )
         
@@ -371,6 +375,7 @@ class Discriminator(nn.Module):
         out = self.layer5(out)
         print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
+        out = self.flatten(out)
 
         out = self.fc1(out)
         print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
@@ -380,7 +385,7 @@ class Discriminator(nn.Module):
         print("after fc3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
 
-        return validity
+        return out
 
 
 

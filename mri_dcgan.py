@@ -16,6 +16,9 @@ import torch
 
 from collections import OrderedDict
 
+from MRIDataset import *
+
+import matplotlib.pyplot as plt
 
 os.makedirs("images", exist_ok=True)
 
@@ -80,7 +83,7 @@ class Generator(torch.nn.Module):
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
             # padd = (1,1,  1)
-        self.cube_len = 1
+        self.cube_len = 4
 
         # z: 1 -> 2 -> 4 -> 8 -> ... -> 8 
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
@@ -142,37 +145,37 @@ class Generator(torch.nn.Module):
         ) # (8, 724, 512)
 
         self.layer10 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.cube_len, self.cube_len, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),              
-            torch.nn.BatchNorm3d(self.cube_len),
+            torch.nn.ConvTranspose3d(self.cube_len, 1, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),
+            # torch.nn.BatchNorm3d(self.cube_len),
             torch.nn.Sigmoid()
         ) # (8, 1448, 512)
 
     def forward(self, x):
         out = x.view(-1, opt.latent_dim, 1, 1, 1)
-        print("input size:", out.size())  # torch.Size([100, 200, 1, 1, 1])
+        # print("input size:", out.size())  # torch.Size([100, 200, 1, 1, 1])
         out = self.layer1(out)
-        print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
+        # print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
         out = self.layer2(out)
-        print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer3(out)
-        print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
         out = self.layer4(out)
 
-        print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer5(out)
-        print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
-
+        # print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        #
         out = self.layer6(out)
-        print("after layer 6:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 6:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer7(out)
-        print("after layer 7:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 7:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer8(out)
-        print("after layer 8:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 8:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer9(out)
-        print("after layer 9:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 9:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer10(out)
-        print("after layer 10:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 10:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
         return out
 
@@ -269,36 +272,9 @@ class _Transition(nn.Sequential):
         # return out
 
 
-
-# class Discriminator(nn.Module):
-#     def __init__(self):
-#         super(Discriminator, self).__init__()
-
-#         def discriminator_block(in_filters, out_filters, bn=True):
-#             block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0.25)]
-#             if bn:
-#                 block.append(nn.BatchNorm2d(out_filters, 0.8))
-#             return block
-
-#         self.model = nn.Sequential(
-#             *discriminator_block(opt.channels, 16, bn=False),
-#             *discriminator_block(16, 32),
-#             *discriminator_block(32, 64),
-#             *discriminator_block(64, 128),
-#         )
-
-#         # The height and width of downsampled image
-#         ds_size = opt.img_size // 2 ** 4
-#         self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
-
-#     def forward(self, img):
-#         out = self.model(img)
-#         out = out.view(out.shape[0], -1)
-#         validity = self.adv_layer(out)
-
-#         return validity
-
-
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
 
 
     # inverse of generator
@@ -337,8 +313,10 @@ class Discriminator(nn.Module):
             torch.nn.ReLU()
         ) # (1, 23, 16)
 
+        self.flatten = Flatten()
+
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(5888, 128, bias=True),
+            torch.nn.Linear(, 128, bias=True),
             torch.nn.ReLU()
         )
 
@@ -348,7 +326,7 @@ class Discriminator(nn.Module):
         )
 
         self.fc3 = torch.nn.Sequential(
-            torch.nn.Linear(128, 2, bias=True),
+            torch.nn.Linear(128, 1, bias=True),
             torch.nn.Sigmoid()
         )
         
@@ -359,28 +337,29 @@ class Discriminator(nn.Module):
     def forward(self, img):
         # out = x.view(-1, opt.latent_dim, 1, 1, 1)
         out = self.layer1(img)
-        print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
+        # print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
         out = self.layer2(out)
-        print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         # out = self.layer3(out)
         # print("after layer 3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
         out = self.layer4(out)
 
-        print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 4:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.layer5(out)
-        print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after layer 5:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
+        out = self.flatten(out)
 
         out = self.fc1(out)
-        print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.fc2(out)
-        print("after fc2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after fc2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.fc3(out)
-        print("after fc3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
+        # print("after fc3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
 
-        return validity
+        return out
 
 
 
@@ -405,18 +384,32 @@ discriminator.apply(weights_init_normal)
 
 # Configure data loader
 os.makedirs("../../data/mnist", exist_ok=True)
+# dataloader = torch.utils.data.DataLoader(
+#     datasets.MNIST(
+#         "../../data/mnist",
+#         train=True,
+#         download=True,
+#         transform=transforms.Compose(
+#             [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+#         ),
+#     ),
+#     batch_size=opt.batch_size,
+#     shuffle=True,
+# )
+
 dataloader = torch.utils.data.DataLoader(
-    datasets.MNIST(
-        "../../data/mnist",
-        train=True,
-        download=True,
-        transform=transforms.Compose(
-            [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
-        ),
+    MRIDataset(
+        csv_file="annotations.csv",
+        root_dir="wbmri",
+        # transform=transforms.Compose(
+        #     [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+        # ),
     ),
     batch_size=opt.batch_size,
     shuffle=True,
 )
+
+
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -429,19 +422,20 @@ Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 # ----------
 
 for epoch in range(opt.n_epochs):
-    for i, (imgs, _) in enumerate(dataloader):
+    for i, imgs in enumerate(dataloader):
 
         # Adversarial ground truths
 
         valid = Variable(Tensor(imgs.shape[0], 1).fill_(1.0), requires_grad=False)
         fake = Variable(Tensor(imgs.shape[0], 1).fill_(0.0), requires_grad=False)
 
+        # print(valid, fake)
 
 
         # Configure input
-        real_imgs = Variable(imgs.type(Tensor))
+        real_imgs = Variable(imgs.type(Tensor)).unsqueeze(1)
         
-        print("image shape", imgs.shape)
+        # print("image shape", imgs.shape)
 
 
 
@@ -456,12 +450,18 @@ for epoch in range(opt.n_epochs):
 
         # Generate a batch of images
         gen_imgs = generator(z)
-        print("generated images")
+        # print("generated images")
+
+
+
+
+
+
 
         # Loss measures generator's ability to fool the discriminator
         g_loss = adversarial_loss(discriminator(gen_imgs), valid)
 
-        print("calculated g_loss")
+        # print("calculated g_loss")
 
         g_loss.backward()
         optimizer_G.step()
@@ -485,10 +485,13 @@ for epoch in range(opt.n_epochs):
             % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
         )
 
+
         batches_done = epoch * len(dataloader) + i
+
         if batches_done % opt.sample_interval == 0:
-            save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
 
-
+            plt.imshow(gen_imgs.cpu().detach().numpy()[0, 0, 3, :, :], cmap="gray")
+            plt.draw()
+            plt.pause(0.001)
 
 torch.save(generator.state_dict(), "mri_dcgan_model")

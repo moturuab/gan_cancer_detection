@@ -32,7 +32,7 @@ class MRIDataset(Dataset):
         volume = np.load(volume_name)
         # annotations = self.annotations.iloc[index,0].as_matrix()
         # annotations = annotations.astype('float').reshape(-1,2)
-        sample = {'volume': volume}
+        sample = volume
 
         if self.transform:
             sample = self.transform(sample)

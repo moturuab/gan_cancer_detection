@@ -41,13 +41,16 @@ parser.add_argument("--channels", type=int, default=1, help="number of image cha
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
 parser.add_argument("--load_g", type=str, default=None, help="generator model to load")
 parser.add_argument("--load_d", type=str, default=None, help="discriminator model to load")
+parser.add_argument("--i_c", type=float, default=0.2, help="")
+parser.add_argument("--init_beta", type=float, default=0, help="")
+
 
 
 opt = parser.parse_args()
-print(opt)
+#print(opt)
 
 cuda = True if torch.cuda.is_available() else False
-
+print("GPU available:", cuda)
 
 def weights_init_normal(m):
     classname = m.__class__.__name__
@@ -93,23 +96,17 @@ class Generator(torch.nn.Module):
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
         # padd = (1,1,  1)
-        self.feature_size = 6
+        self.feature_size = 20
 
         # z: 1 -> 2 -> 4 -> 24 -> ... -> 24
-        # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
+        # x: 1 -> 2 -> 6 -> 12 -> 24 -> 48 -> 100 -> 200 -> 400 -> 800 -> 1600
+
         # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(100, (self.feature_size * 32) * 3 * 2 * 2, bias=True),
+            torch.nn.Linear(100, (self.feature_size * 32) * 2 * 2, bias=True),
             torch.nn.ReLU()
-        )  # (3, 2, 2)
-
-        # self.layer1 = torch.nn.Sequential(
-        #     torch.nn.ConvTranspose3d(opt.latent_dim, self.feature_size * 32, kernel_size=(5, 4, 4), stride=(1, 1, 1),
-        #                              padding=(1, 1, 1)),
-        #     torch.nn.BatchNorm3d(self.feature_size * 32),
-        #     torch.nn.ReLU()
-        # )  # (3, 2, 2)
+        )  # (1, 2, 2)
 
 
         self.layer2 = torch.nn.Sequential(
@@ -117,70 +114,70 @@ class Generator(torch.nn.Module):
                                      padding=(1, 0, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 16),
             torch.nn.ReLU()
-        )  # (6, 6, 4)
+        )  # (1, 6, 4)
 
         self.layer3 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 16, kernel_size=(3, 4, 4), stride=(2, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 16, kernel_size=(5, 4, 4), stride=(2, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 16),
             torch.nn.ReLU()
-        )  # (12, 12, 8)
+        )  # (1, 12, 8)
         self.layer4 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 8, kernel_size=(3, 4, 4), stride=(2, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(2, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 8),
             torch.nn.ReLU()
-        )  # (24, 24, 16)
+        )  # (1, 24, 16)
 
         # keep z dim constant (at 8)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(3, 5, 4), stride=(1, 2, 2),
-                                     padding=(1, 3, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 8),
             torch.nn.ReLU()
-        )  # (24, 45, 32)
+        )  # (1, 48, 32)
 
         self.layer6 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(3, 4, 4), stride=(1, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 6, 4), stride=(1, 2, 2),
+                                     padding=(2, 0, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 4),
             torch.nn.ReLU()
-        )  # (24, 90, 64)
+        )  # (1, 100, 64)
 
         self.layer7 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 4, kernel_size=(3, 5, 4), stride=(1, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 4),
             torch.nn.ReLU()
-        )  # (24, 181, 128)
+        )  # (1, 200, 128)
 
         self.layer8 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 2, kernel_size=(3, 4, 4), stride=(1, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 2, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 2),
             torch.nn.ReLU()
-        )  # (24, 362, 256)
+        )  # (1, 400, 256)
 
         self.layer9 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size, kernel_size=(3, 4, 4), stride=(1, 2, 2),
-                                     padding=(1, 1, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size),
             torch.nn.ReLU()
 
-        )  # (24, 724, 512)
+        )  # (1, 800, 512)
 
         self.layer10 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size, 1, kernel_size=(3, 4, 5), stride=(1, 2, 1), padding=(1, 1, 2)),
+            torch.nn.ConvTranspose3d(self.feature_size, 1, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),
             # torch.nn.BatchNorm3d(self.feature_size),
             torch.nn.Sigmoid()
-        )  # (24, 1448, 512)
+        )  # (1, 1600, 512)
 
     def forward(self, x):
         out = x.view(-1, opt.latent_dim)
         # print("input size:", out.size())
 
         out = self.fc1(out)
-        out = out.view(-1, self.feature_size * 32, 3, 2, 2)
+        out = out.view(-1, self.feature_size * 32, 1, 2, 2)
         # print("after layer 1:",out.size())
 
         out = self.layer2(out)
@@ -302,15 +299,15 @@ class Flatten(nn.Module):
         return input.view(input.size(0), -1)
 
     # inverse of generator
-    # z: 1 -> 2 -> 4 -> 8 -> ... -> 8
-    # x: 1 -> 2 -> 6 -> 12 -> 24 -> 45 -> 90 -> 181 -> 362 -> 724 -> 1448
+    # z: 1 -> 2 -> 4 -> 24 -> ... -> 24
+    # x: 1 -> 2 -> 6 -> 12 -> 24 -> 48 -> 100 -> 200 -> 400 -> 800 -> 1600
     # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
 
 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.feature_size = 16
+        self.feature_size = 20
 
         self.layer1 = torch.nn.Sequential(
             torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1)),
@@ -342,17 +339,17 @@ class Discriminator(nn.Module):
         self.flatten = Flatten()
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(47104, 256, bias=True),
+            torch.nn.Linear(58880, 256, bias=True),
             torch.nn.ReLU()
         )
 
         self.fc2 = torch.nn.Sequential(
             torch.nn.Linear(256, 256, bias=True),
-            torch.nn.ReLU()
+            # torch.nn.ReLU()
         )
 
         self.fc3 = torch.nn.Sequential(
-            torch.nn.Linear(256, 1, bias=True),
+            torch.nn.Linear(128, 1, bias=True),
             torch.nn.Sigmoid()
         )
 
@@ -360,7 +357,8 @@ class Discriminator(nn.Module):
         # ds_size = opt.img_size // 2 ** 4
         # self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
 
-    def forward(self, img):
+    def forward(self, img, mean_mode=True):
+        #print(img)
         # out = x.view(-1, opt.latent_dim, 1, 1, 1)
         out = self.layer1(img)
         # print("after layer 1:",out.size())  # torch.Size([100, 512, 4, 4, 4])
@@ -378,13 +376,65 @@ class Discriminator(nn.Module):
         out = self.flatten(out)
 
         out = self.fc1(out)
+        #print(out)
         # print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.fc2(out)
-        # print("after fc2:",out.size())  # torch.Size([100, 256, 8, 8, 8])
-        out = self.fc3(out)
-        # print("after fc3:",out.size())  # torch.Size([100, 256, 8, 8, 8])
 
-        return out
+
+        # VDB
+        parameters = self.flatten(out)
+        halfpoint = parameters.shape[-1] // 2
+        mus, sigmas = parameters[:, :halfpoint], parameters[:, halfpoint:],
+        sigmas = torch.sigmoid(sigmas)
+
+
+        if mean_mode:
+            out = torch.randn_like(mus).to(img.device) * sigmas + mus
+        else:
+            out = mus
+
+        out = self.fc3(out)
+
+        return out, mus, sigmas
+
+def bottleneck_loss(mus, sigmas, i_c, alpha=1e-8):
+    # print(torch.sum(0.5 * (mus ** 2 + sigmas ** 2), dim=1), "----",
+    #       mus.shape[1],
+    #       torch.sum(torch.log(sigmas ** 2 + alpha), dim=1))
+    #
+    # a = torch.sum(0.5 * (mus ** 2 + sigmas ** 2), dim=1)
+    # b = mus.shape[1]
+    # c = torch.sum(torch.log(sigmas ** 2 + alpha), dim=1)
+    #print("Sigmas: {}, {}".format(sigmas, sigmas.shape))
+    #print("Mus: {}, {}".format(mus, mus.shape))
+    kl_divergence = torch.sum(0.5 * (mus ** 2 + sigmas ** 2)
+                              - 0.5
+                              - torch.log(sigmas ** 2 + alpha), dim=1)
+
+    #print(kl_divergence, "tttttt")
+    # calculate the bottleneck loss:
+    bl = (torch.mean(kl_divergence) - i_c)
+
+    #print(bl, "sssssss")
+    # return the bottleneck_loss:
+    return bl
+
+# def bottleneck_loss(mus, sigmas, i_c, alpha=1e-8):
+#
+#     kl_divergence = (0.5 * torch.sum((mus ** 2) + (sigmas ** 2)
+#                                   - torch.log((sigmas ** 2) + alpha) - 1, dim=1))
+#
+#     # calculate the bottleneck loss:
+#     bl = (torch.mean(kl_divergence) - i_c)
+#
+#     # return the bottleneck_loss:
+#     return bl
+
+def optimize_beta(beta, bnl):
+    #print("BNL")
+    #print(bnl)
+    beta_new  = max(0, beta + (1e-6 * bnl.item()))
+    return beta_new
 
 
 # Loss function
@@ -448,20 +498,22 @@ Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 #  Training
 # ----------
 iter_start_time = time.time()
-
+beta = opt.init_beta
 for epoch in range(opt.n_epochs):
     for i, imgs in enumerate(dataloader):
         iter_time = time.time() - iter_start_time
         iter_start_time = time.time()
 
+        optimizer_D.zero_grad()
+
         # Adversarial ground truths
         valid = Variable(Tensor(imgs.shape[0], 1).fill_(1.0), requires_grad=False)
         fake = Variable(Tensor(imgs.shape[0], 1).fill_(0.0), requires_grad=False)
 
+        # print(valid, fake)
 
         # Configure input
-        real_imgs = Variable(imgs.type(Tensor))[:, 11, :, :].unsqueeze(1).unsqueeze(1)
-
+        real_imgs = Variable(imgs.type(Tensor)).unsqueeze(1)
 
         # print("image shape", imgs.shape)
 
@@ -476,10 +528,11 @@ for epoch in range(opt.n_epochs):
 
         # Generate a batch of images
         gen_imgs = generator(z)
-        # print("generated images")
+
+        d_prediction, mus, sigmas = discriminator(gen_imgs, mean_mode=False)
 
         # Loss measures generator's ability to fool the discriminator
-        g_loss = adversarial_loss(discriminator(gen_imgs), valid)
+        g_loss = adversarial_loss(d_prediction, valid)
 
         # print("calculated g_loss")
 
@@ -490,25 +543,49 @@ for epoch in range(opt.n_epochs):
         #  Train Discriminator
         # ---------------------
 
-        optimizer_D.zero_grad()
+
+
 
         # Measure discriminator's ability to classify real from generated samples
-        real_loss = adversarial_loss(discriminator(real_imgs), valid)
-        fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
-        d_loss = (real_loss + fake_loss) / 2
+        r_d_prediction, r_mus, r_sigmas = discriminator(real_imgs)
+        real_loss = adversarial_loss(r_d_prediction, valid)
+
+        f_d_prediction, f_mus, f_sigmas = discriminator(gen_imgs.detach())
+        fake_loss = adversarial_loss(f_d_prediction, fake)
+
+
+
+        bottle_neck_loss = bottleneck_loss(
+            torch.cat((r_mus, f_mus), dim=0),
+            torch.cat((r_sigmas, f_sigmas), dim=0),
+            opt.i_c
+        )
+
+        #print(bottle_neck_loss, "=========")
+
+        # d_loss = (real_loss + fake_loss) / 2 + bottle_neck_loss
+        d_loss = (real_loss + fake_loss) / 2 + beta * bottle_neck_loss
+        # d_loss = (real_loss + fake_loss) / 2
+
+        beta = optimize_beta(beta, bottle_neck_loss)
+
 
         d_loss.backward()
         optimizer_D.step()
 
+
+
+        #print(beta)
+
         print(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Iter time: %f]"
-            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), iter_time)
+            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Iter time: %f][Bottleneck loss: %f] [Beta: %f]"
+            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), iter_time, bottle_neck_loss, beta)
         )
 
         batches_done = epoch * len(dataloader) + i
 
         if batches_done % opt.sample_interval == 0:
-            im = gen_imgs.cpu().detach().numpy()[0, 0, 0, :, :]
+            im = gen_imgs.cpu().detach().numpy()[0, 0, 11, :, :]
             #imwrite("g_z/epoch_{}_batch_{}.png".format(epoch, i), (im*255).astype(np.uint8))
             matplotlib.image.imsave("g_z/epoch_{}_batch_{}.png".format(epoch, i), im, cmap='gray')
             plt.imshow(im, cmap="gray")

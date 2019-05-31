@@ -26,7 +26,8 @@ import time
 from scipy import misc
 from imageio import imwrite
 
-os.makedirs("images", exist_ok=True)
+os.makedirs("g_z", exist_ok=True)
+os.makedirs("networks", exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
@@ -313,33 +314,29 @@ class Discriminator(nn.Module):
             torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1)),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
-        )  # (6, 362, 128)
+        )  # (1, 400, 128)
 
         self.layer2 = torch.nn.Sequential(
             torch.nn.Conv3d(self.feature_size, self.feature_size * 2, kernel_size=3, stride=2, padding=(1, 1, 1)),
-            # torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
-            torch.nn.ReLU()
-        )  # (3, 181, 64)
-
-        # self.layer3 = torch.nn.Sequential(
-        #     torch.nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=(1, 1, 1)),
-        #     torch.nn.MaxPool3d(kernel_size=(2, 2, 2)),
-        #     torch.nn.ReLU()
-        # ) # (1, 181, 64)
-        self.layer4 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=3, stride=(3, 2, 1), padding=(1, 0, 1)),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
-        )  # (1, 45, 32)
+        )  # (1, 100, 64)
+
+
+        self.layer4 = torch.nn.Sequential(
+            torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=(3, 5, 3), stride=(1, 2, 1), padding=(1, 0, 1)),
+            torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
+            torch.nn.ReLU()
+        )  # (1, 24, 32)
         self.layer5 = torch.nn.Sequential(
             torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 1, 1)),
             torch.nn.ReLU()
-        )  # (1, 23, 16)
+        )  # (1, 12, 16)
 
         self.flatten = Flatten()
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(58880, 256, bias=True),
+            torch.nn.Linear(15360, 256, bias=True),
             torch.nn.ReLU()
         )
 
@@ -478,8 +475,8 @@ os.makedirs("../../data/mnist", exist_ok=True)
 
 dataloader = torch.utils.data.DataLoader(
     MRIDataset(
-        csv_file="annotations.csv",
-        root_dir="wbmri",
+        csv_file="annotations_slices.csv",
+        root_dir="wbmri_slices",
         # transform=transforms.Compose(
         #     [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
         # ),
@@ -513,7 +510,7 @@ for epoch in range(opt.n_epochs):
         # print(valid, fake)
 
         # Configure input
-        real_imgs = Variable(imgs.type(Tensor)).unsqueeze(1)
+        real_imgs = Variable(imgs.type(Tensor)).unsqueeze(1).unsqueeze(1)
 
         # print("image shape", imgs.shape)
 
@@ -585,12 +582,13 @@ for epoch in range(opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
 
         if batches_done % opt.sample_interval == 0:
-            im = gen_imgs.cpu().detach().numpy()[0, 0, 11, :, :]
+            torch.save(generator.state_dict(), "networks/mri_dcgan_generator")
+            torch.save(discriminator.state_dict(), "networks/mri_dcgan_discriminator")
+
+            im = gen_imgs.cpu().detach().numpy()[0, 0, 0, :, :]
             #imwrite("g_z/epoch_{}_batch_{}.png".format(epoch, i), (im*255).astype(np.uint8))
             matplotlib.image.imsave("g_z/epoch_{}_batch_{}.png".format(epoch, i), im, cmap='gray')
             plt.imshow(im, cmap="gray")
             plt.draw()
             plt.pause(0.001)
 
-torch.save(generator.state_dict(), "mri_dcgan_generator")
-torch.save(discriminator.state_dict(), "mri_dcgan_discriminator")

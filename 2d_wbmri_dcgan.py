@@ -39,12 +39,13 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
 parser.add_argument("--img_size", type=int, default=32, help="size of each image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
+parser.add_argument("--sample_interval", type=int, default=5, help="interval between image sampling")
+parser.add_argument("--model_save_interval", type=int, default=400, help="interval between model saves")
 parser.add_argument("--load_g", type=str, default=None, help="generator model to load")
 parser.add_argument("--load_d", type=str, default=None, help="discriminator model to load")
 parser.add_argument("--i_c", type=float, default=0.2, help="")
 parser.add_argument("--init_beta", type=float, default=0, help="")
-
+parser.add_argument("--loss_fct", type=str, default="standard", help="standard or vdb")
 
 
 opt = parser.parse_args()
@@ -97,7 +98,7 @@ class Generator(torch.nn.Module):
         # padd = (0, 0, 0)
         # if self.cube_len == 32:
         # padd = (1,1,  1)
-        self.feature_size = 20
+        self.feature_size = 64
 
         # z: 1 -> 2 -> 4 -> 24 -> ... -> 24
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 48 -> 100 -> 200 -> 400 -> 800 -> 1600
@@ -308,7 +309,7 @@ class Flatten(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.feature_size = 20
+        self.feature_size = 64
 
         self.layer1 = torch.nn.Sequential(
             torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1)),
@@ -327,16 +328,16 @@ class Discriminator(nn.Module):
             torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=(3, 5, 3), stride=(1, 2, 1), padding=(1, 0, 1)),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
-        )  # (1, 24, 32)
+        )  # (1, 24, 16)
         self.layer5 = torch.nn.Sequential(
             torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 1, 1)),
             torch.nn.ReLU()
-        )  # (1, 12, 16)
+        )  # (1, 12, 8)
 
         self.flatten = Flatten()
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(15360, 256, bias=True),
+            torch.nn.Linear(self.feature_size * 8 * 12 * 8, 256, bias=True),
             torch.nn.ReLU()
         )
 
@@ -561,8 +562,10 @@ for epoch in range(opt.n_epochs):
         #print(bottle_neck_loss, "=========")
 
         # d_loss = (real_loss + fake_loss) / 2 + bottle_neck_loss
-        d_loss = (real_loss + fake_loss) / 2 + beta * bottle_neck_loss
-        # d_loss = (real_loss + fake_loss) / 2
+        if opt.loss_fct == "standard":
+            d_loss = (real_loss + fake_loss) / 2
+        elif opt.loss_fct == "vdb":
+            d_loss = (real_loss + fake_loss) / 2 + beta * bottle_neck_loss
 
         beta = optimize_beta(beta, bottle_neck_loss)
 
@@ -582,8 +585,6 @@ for epoch in range(opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
 
         if batches_done % opt.sample_interval == 0:
-            torch.save(generator.state_dict(), "networks/mri_dcgan_generator")
-            torch.save(discriminator.state_dict(), "networks/mri_dcgan_discriminator")
 
             im = gen_imgs.cpu().detach().numpy()[0, 0, 0, :, :]
             #imwrite("g_z/epoch_{}_batch_{}.png".format(epoch, i), (im*255).astype(np.uint8))
@@ -592,3 +593,6 @@ for epoch in range(opt.n_epochs):
             plt.draw()
             plt.pause(0.001)
 
+        if batches_done % opt.model_save_interval == 0:
+            torch.save(generator.state_dict(), "networks/mri_dcgan_generator_epoch_{}".format(epoch))
+            torch.save(discriminator.state_dict(), "networks/mri_dcgan_discriminator_epoch_{}".format(epoch))

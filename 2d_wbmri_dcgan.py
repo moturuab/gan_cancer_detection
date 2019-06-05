@@ -12,6 +12,8 @@ from torch.autograd import Variable
 
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils import spectral_norm
+
 import torch
 
 from collections import OrderedDict
@@ -22,6 +24,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image
 
 import time
+
 
 from scipy import misc
 from imageio import imwrite
@@ -73,6 +76,8 @@ class Generator(torch.nn.Module):
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 48 -> 100 -> 200 -> 400 -> 800 -> 1600
 
         # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
+
+
 
         self.fc1 = torch.nn.Sequential(
             torch.nn.Linear(opt.latent_dim, (self.feature_size * 32) * 2 * 2, bias=True),
@@ -228,39 +233,42 @@ class Flatten(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, feature_size):
         super(Discriminator, self).__init__()
+
+
         self.feature_size = feature_size
 
+
         self.layer1 = torch.nn.Sequential(
-            torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1)),
+            spectral_norm(torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1))),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
         )  # (1, 400, 128)
 
         self.layer2 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size, self.feature_size * 2, kernel_size=3, stride=2, padding=(1, 1, 1)),
+            spectral_norm(torch.nn.Conv3d(self.feature_size, self.feature_size * 2, kernel_size=3, stride=2, padding=(1, 1, 1))),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
         )  # (1, 100, 64)
 
         self.layer4 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=3, stride=(1, 2, 1), padding=(1, 1, 1)),
+            spectral_norm(torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=3, stride=(1, 2, 1), padding=(1, 1, 1))),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
         )  # (1, 25, 16)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 0, 1)),
+            spectral_norm(torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 0, 1))),
             torch.nn.ReLU()
         )  # (1, 12, 8)
 
         self.flatten = Flatten()
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(self.feature_size * 8 * 12 * 8, 256, bias=True),
+            spectral_norm(torch.nn.Linear(self.feature_size * 8 * 12 * 8, 256, bias=True)),
             torch.nn.ReLU()
         )
 
         self.fc2 = torch.nn.Sequential(
-            torch.nn.Linear(256, 256, bias=True),
+            spectral_norm(torch.nn.Linear(256, 256, bias=True)),
             # torch.nn.ReLU()
         )
 
@@ -270,7 +278,7 @@ class Discriminator(nn.Module):
         )
 
         self.fc4 = torch.nn.Sequential(
-            torch.nn.Linear(256, 1, bias=True),
+            spectral_norm(torch.nn.Linear(256, 1, bias=True)),
             torch.nn.Sigmoid()
         )
 

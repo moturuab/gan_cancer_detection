@@ -57,14 +57,14 @@ print(opt)
 cuda = True if torch.cuda.is_available() else False
 print("GPU available:", cuda)
 
-def weights_init_normal(m):
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif classname.find("BatchNorm2d") != -1:
-        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
-        torch.nn.init.constant_(m.bias.data, 0.0)
-
+# def weights_init_normal(m):
+#     classname = m.__class__.__name__
+#     if classname.find("Conv") != -1:
+#         torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+#     elif classname.find("BatchNorm2d") != -1:
+#         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+#         torch.nn.init.constant_(m.bias.data, 0.0)
+#
 
 class Generator(torch.nn.Module):
     def __init__(self, feature_size):
@@ -80,63 +80,62 @@ class Generator(torch.nn.Module):
 
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(opt.latent_dim, (self.feature_size * 32) * 2 * 2, bias=True),
-            torch.nn.BatchNorm1d(self.feature_size * 32 * 2 * 2),
+            torch.nn.Linear(opt.latent_dim, (self.feature_size * 16) * 2 * 2, bias=True),
+            torch.nn.BatchNorm1d(self.feature_size * 16 * 2 * 2),
             torch.nn.ReLU()
         )  # (1, 2, 2)
 
-
         self.layer2 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 32, self.feature_size * 16, kernel_size=(3, 4, 4), stride=(2, 2, 2),
+            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 8, kernel_size=(3, 4, 4), stride=(2, 2, 2),
                                      padding=(1, 0, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 16),
+            torch.nn.BatchNorm3d(self.feature_size * 8),
             torch.nn.ReLU()
         )  # (1, 6, 4)
 
         self.layer3 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 16, kernel_size=(5, 4, 4), stride=(2, 2, 2),
+            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(2, 2, 2),
                                      padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 16),
+            torch.nn.BatchNorm3d(self.feature_size * 8),
             torch.nn.ReLU()
         )  # (1, 12, 8)
         self.layer4 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(2, 2, 2),
+            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(2, 2, 2),
                                      padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 8),
+            torch.nn.BatchNorm3d(self.feature_size * 4),
             torch.nn.ReLU()
         )  # (1, 24, 16)
 
         # keep z dim constant (at 8)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
                                      padding=(2, 0, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 8),
+            torch.nn.BatchNorm3d(self.feature_size * 4),
             torch.nn.ReLU()
         )  # (1, 50, 32)
 
         self.layer6 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 4),
-            torch.nn.ReLU()
-        )  # (1, 100, 64)
-
-        self.layer7 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 4),
-            torch.nn.ReLU()
-        )  # (1, 200, 128)
-
-        self.layer8 = torch.nn.Sequential(
             torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 2, kernel_size=(5, 4, 4), stride=(1, 2, 2),
                                      padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 2),
             torch.nn.ReLU()
+        )  # (1, 100, 64)
+
+        self.layer7 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size * 2, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
+            torch.nn.BatchNorm3d(self.feature_size * 2),
+            torch.nn.ReLU()
+        )  # (1, 200, 128)
+
+        self.layer8 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
+            torch.nn.BatchNorm3d(self.feature_size),
+            torch.nn.ReLU()
         )  # (1, 400, 256)
 
         self.layer9 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+            torch.nn.ConvTranspose3d(self.feature_size, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
                                      padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size),
             torch.nn.ReLU()
@@ -154,7 +153,7 @@ class Generator(torch.nn.Module):
         # print("input size:", out.size())
 
         out = self.fc1(out)
-        out = out.view(-1, self.feature_size * 32, 1, 2, 2)
+        out = out.view(-1, self.feature_size * 16, 1, 2, 2)
         # print("after layer 1:",out.size())
 
         out = self.layer2(out)
@@ -255,6 +254,7 @@ class Discriminator(nn.Module):
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
         )  # (1, 25, 16)
+
         self.layer5 = torch.nn.Sequential(
             spectral_norm(torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 0, 1))),
             torch.nn.ReLU()
@@ -386,8 +386,8 @@ if cuda:
     adversarial_loss.cuda()
 
 # Initialize weights
-generator.apply(weights_init_normal)
-discriminator.apply(weights_init_normal)
+# generator.apply(weights_init_normal)
+# discriminator.apply(weights_init_normal)
 
 # Configure data loader
 os.makedirs("../../data/mnist", exist_ok=True)

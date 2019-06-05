@@ -32,7 +32,7 @@ os.makedirs("networks", exist_ok=True)
 parser = argparse.ArgumentParser()
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
+parser.add_argument("--lr", type=float, default=1e-5, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
@@ -40,16 +40,16 @@ parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality 
 parser.add_argument("--img_size", type=int, default=32, help="size of each image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=5, help="interval between image sampling")
-parser.add_argument("--model_save_interval", type=int, default=400, help="interval between model saves")
+parser.add_argument("--model_save_interval", type=int, default=200, help="interval between model saves")
 parser.add_argument("--load_g", type=str, default=None, help="generator model to load")
 parser.add_argument("--load_d", type=str, default=None, help="discriminator model to load")
-parser.add_argument("--i_c", type=float, default=0.2, help="")
+parser.add_argument("--i_c", type=float, default=0.5, help="")
 parser.add_argument("--init_beta", type=float, default=0, help="")
 parser.add_argument("--loss_fct", type=str, default="standard", help="standard or vdb")
 
 
 opt = parser.parse_args()
-#print(opt)
+print(opt)
 
 cuda = True if torch.cuda.is_available() else False
 print("GPU available:", cuda)
@@ -63,42 +63,11 @@ def weights_init_normal(m):
         torch.nn.init.constant_(m.bias.data, 0.0)
 
 
-# class Generator(nn.Module):
-#     def __init__(self):
-#         super(Generator, self).__init__()
-
-#         self.init_size = opt.img_size // 4
-#         self.l1 = nn.Sequential(nn.Linear(opt.latent_dim, 128 * self.init_size ** 2))
-
-#         self.conv_blocks = nn.Sequential(
-#             nn.BatchNorm2d(128),
-#             nn.Upsample(scale_factor=2),
-#             nn.Conv2d(128, 128, 3, stride=1, padding=1),
-#             nn.BatchNorm2d(128, 0.8),
-#             nn.LeakyReLU(0.2, inplace=True),
-#             nn.Upsample(scale_factor=2),
-#             nn.Conv2d(128, 64, 3, stride=1, padding=1),
-#             nn.BatchNorm2d(64, 0.8),
-#             nn.LeakyReLU(0.2, inplace=True),
-#             nn.Conv2d(64, opt.channels, 3, stride=1, padding=1),
-#             nn.Tanh(),
-#         )
-
-#     def forward(self, z):
-#         out = self.l1(z)
-#         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
-#         img = self.conv_blocks(out)
-#         return img
-
 class Generator(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, feature_size):
         super(Generator, self).__init__()
-        # self.args = args
 
-        # padd = (0, 0, 0)
-        # if self.cube_len == 32:
-        # padd = (1,1,  1)
-        self.feature_size = 64
+        self.feature_size = feature_size
 
         # z: 1 -> 2 -> 4 -> 24 -> ... -> 24
         # x: 1 -> 2 -> 6 -> 12 -> 24 -> 48 -> 100 -> 200 -> 400 -> 800 -> 1600
@@ -106,7 +75,8 @@ class Generator(torch.nn.Module):
         # y: 1 -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 -> 128 -> 256 -> 512 -> 512
 
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(100, (self.feature_size * 32) * 2 * 2, bias=True),
+            torch.nn.Linear(opt.latent_dim, (self.feature_size * 32) * 2 * 2, bias=True),
+            torch.nn.BatchNorm1d(self.feature_size * 32 * 2 * 2),
             torch.nn.ReLU()
         )  # (1, 2, 2)
 
@@ -134,14 +104,14 @@ class Generator(torch.nn.Module):
         # keep z dim constant (at 8)
         self.layer5 = torch.nn.Sequential(
             torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
+                                     padding=(2, 0, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 8),
             torch.nn.ReLU()
-        )  # (1, 48, 32)
+        )  # (1, 50, 32)
 
         self.layer6 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 6, 4), stride=(1, 2, 2),
-                                     padding=(2, 0, 1)),
+            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
+                                     padding=(2, 1, 1)),
             torch.nn.BatchNorm3d(self.feature_size * 4),
             torch.nn.ReLU()
         )  # (1, 100, 64)
@@ -171,7 +141,7 @@ class Generator(torch.nn.Module):
         self.layer10 = torch.nn.Sequential(
             torch.nn.ConvTranspose3d(self.feature_size, 1, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),
             # torch.nn.BatchNorm3d(self.feature_size),
-            torch.nn.Sigmoid()
+            torch.nn.Tanh()
         )  # (1, 1600, 512)
 
     def forward(self, x):
@@ -245,57 +215,6 @@ class _Transition(nn.Sequential):
         self.add_module('pool', nn.AvgPool3d(kernel_size=2, stride=2))
 
 
-# class DenseNet3D(nn.Module):
-#     r"""Densenet-BC model class, based on
-#     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`
-#     Args:
-#         growth_rate (int) - how many filters to add each layer (`k` in paper)
-#         block_config (list of 4 ints) - how many layers in each pooling block
-#         num_init_features (int) - the number of filters to learn in the first convolution layer
-#         bn_size (int) - multiplicative factor for number of bottle neck layers
-#           (i.e. bn_size * k features in the bottleneck layer)
-#         drop_rate (float) - dropout rate after each dense layer
-#         num_classes (int) - number of classification classes
-#     """
-#     def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
-#                  num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
-
-#         super(DenseNet3D, self).__init__()
-
-#         # First convolution
-#         self.features = nn.Sequential(OrderedDict([
-#             ('conv0', nn.Conv3d(1, num_init_features, kernel_size=(3, 7, 7), stride=2, padding=(1, 3, 3), bias=False)),
-#             ('norm0', nn.BatchNorm3d(num_init_features)),
-#             ('relu0', nn.ReLU(inplace=True)),
-#             ('pool0', nn.MaxPool3d(kernel_size=3, stride=2, padding=1)),
-#         ]))
-
-#         # Each denseblock
-#         num_features = num_init_features
-#         for i, num_layers in enumerate(block_config):
-#             block = _DenseBlock(num_layers=num_layers, num_input_features=num_features,
-#                                 bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
-#             self.features.add_module('denseblock%d' % (i + 1), block)
-#             num_features = num_features + num_layers * growth_rate
-#             if i != len(block_config) - 1:
-#                 trans = _Transition(num_input_features=num_features, num_output_features=num_features // 2)
-#                 self.features.add_module('transition%d' % (i + 1), trans)
-#                 num_features = num_features // 2
-
-#         # Final batch norm
-#         self.features.add_module('norm5', nn.BatchNorm3d(num_features))
-
-#         # Linear layer
-#         self.classifier = nn.Linear(num_features, num_classes)
-
-#     def forward(self, x):
-#         features = self.features(x)
-#         out = F.relu(features, inplace=True)
-#         out = F.avg_pool3d(out, kernel_size=(1,7,7)).view(features.size(0), -1)
-#         out = self.classifier(out)
-# return out
-
-
 class Flatten(nn.Module):
     def forward(self, input):
         return input.view(input.size(0), -1)
@@ -307,9 +226,9 @@ class Flatten(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, feature_size):
         super(Discriminator, self).__init__()
-        self.feature_size = 64
+        self.feature_size = feature_size
 
         self.layer1 = torch.nn.Sequential(
             torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1)),
@@ -323,14 +242,13 @@ class Discriminator(nn.Module):
             torch.nn.ReLU()
         )  # (1, 100, 64)
 
-
         self.layer4 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=(3, 5, 3), stride=(1, 2, 1), padding=(1, 0, 1)),
+            torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=3, stride=(1, 2, 1), padding=(1, 1, 1)),
             torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
             torch.nn.ReLU()
-        )  # (1, 24, 16)
+        )  # (1, 25, 16)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 1, 1)),
+            torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 0, 1)),
             torch.nn.ReLU()
         )  # (1, 12, 8)
 
@@ -351,9 +269,10 @@ class Discriminator(nn.Module):
             torch.nn.Sigmoid()
         )
 
-        # # The height and width of downsampled image
-        # ds_size = opt.img_size // 2 ** 4
-        # self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
+        self.fc4 = torch.nn.Sequential(
+            torch.nn.Linear(256, 1, bias=True),
+            torch.nn.Sigmoid()
+        )
 
     def forward(self, img, mean_mode=True):
         #print(img)
@@ -378,6 +297,9 @@ class Discriminator(nn.Module):
         # print("after fc1:",out.size())  # torch.Size([100, 256, 8, 8, 8])
         out = self.fc2(out)
 
+        if opt.loss_fct == "standard":
+            out = self.fc4(out)
+            return out, None, None
 
         # VDB
         parameters = self.flatten(out)
@@ -390,6 +312,8 @@ class Discriminator(nn.Module):
             out = torch.randn_like(mus).to(img.device) * sigmas + mus
         else:
             out = mus
+
+
 
         out = self.fc3(out)
 
@@ -409,11 +333,9 @@ def bottleneck_loss(mus, sigmas, i_c, alpha=1e-8):
                               - 0.5
                               - torch.log(sigmas ** 2 + alpha), dim=1)
 
-    #print(kl_divergence, "tttttt")
     # calculate the bottleneck loss:
     bl = (torch.mean(kl_divergence) - i_c)
 
-    #print(bl, "sssssss")
     # return the bottleneck_loss:
     return bl
 
@@ -442,12 +364,12 @@ adversarial_loss = torch.nn.BCELoss()
 if opt.load_g:
     generator = torch.load(opt.load_g)
 else:
-    generator = Generator()
+    generator = Generator(feature_size=64)
 
 if opt.load_g:
     discriminator = torch.load(opt.load_d)
 else:
-    discriminator = Discriminator()
+    discriminator = Discriminator(feature_size=64)
 
 
 if cuda:
@@ -497,12 +419,17 @@ Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 # ----------
 iter_start_time = time.time()
 beta = opt.init_beta
+
+
 for epoch in range(opt.n_epochs):
     for i, imgs in enumerate(dataloader):
+
+
+
+
         iter_time = time.time() - iter_start_time
         iter_start_time = time.time()
 
-        optimizer_D.zero_grad()
 
         # Adversarial ground truths
         valid = Variable(Tensor(imgs.shape[0], 1).fill_(1.0), requires_grad=False)
@@ -519,7 +446,6 @@ for epoch in range(opt.n_epochs):
         #  Train Generator
         # -----------------
 
-        optimizer_G.zero_grad()
 
         # Sample noise as generator input
         z = Variable(Tensor(np.random.normal(0, 1, (imgs.shape[0], opt.latent_dim))))
@@ -527,12 +453,15 @@ for epoch in range(opt.n_epochs):
         # Generate a batch of images
         gen_imgs = generator(z)
 
+
+
         d_prediction, mus, sigmas = discriminator(gen_imgs, mean_mode=False)
 
         # Loss measures generator's ability to fool the discriminator
         g_loss = adversarial_loss(d_prediction, valid)
 
         # print("calculated g_loss")
+        optimizer_G.zero_grad()
 
         g_loss.backward()
         optimizer_G.step()
@@ -540,8 +469,6 @@ for epoch in range(opt.n_epochs):
         # ---------------------
         #  Train Discriminator
         # ---------------------
-
-
 
 
         # Measure discriminator's ability to classify real from generated samples
@@ -553,11 +480,6 @@ for epoch in range(opt.n_epochs):
 
 
 
-        bottle_neck_loss = bottleneck_loss(
-            torch.cat((r_mus, f_mus), dim=0),
-            torch.cat((r_sigmas, f_sigmas), dim=0),
-            opt.i_c
-        )
 
         #print(bottle_neck_loss, "=========")
 
@@ -565,10 +487,17 @@ for epoch in range(opt.n_epochs):
         if opt.loss_fct == "standard":
             d_loss = (real_loss + fake_loss) / 2
         elif opt.loss_fct == "vdb":
+            bottle_neck_loss = bottleneck_loss(
+                torch.cat((r_mus, f_mus), dim=0),
+                torch.cat((r_sigmas, f_sigmas), dim=0),
+                opt.i_c
+            )
+
             d_loss = (real_loss + fake_loss) / 2 + beta * bottle_neck_loss
 
-        beta = optimize_beta(beta, bottle_neck_loss)
+            beta = optimize_beta(beta, bottle_neck_loss)
 
+        optimizer_D.zero_grad()
 
         d_loss.backward()
         optimizer_D.step()
@@ -576,11 +505,17 @@ for epoch in range(opt.n_epochs):
 
 
         #print(beta)
+        if opt.loss_fct == "standard":
+            print(
+                "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Iter time: %f]"
+                % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), iter_time)
+            )
+        elif opt.loss_fct == "vdb":
 
-        print(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Iter time: %f][Bottleneck loss: %f] [Beta: %f]"
-            % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), iter_time, bottle_neck_loss, beta)
-        )
+            print(
+                "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Iter time: %f][Bottleneck loss: %f] [Beta: %f]"
+                % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), iter_time, bottle_neck_loss, beta)
+            )
 
         batches_done = epoch * len(dataloader) + i
 

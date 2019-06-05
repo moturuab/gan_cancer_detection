@@ -57,13 +57,13 @@ print(opt)
 cuda = True if torch.cuda.is_available() else False
 print("GPU available:", cuda)
 
-# def weights_init_normal(m):
-#     classname = m.__class__.__name__
-#     if classname.find("Conv") != -1:
-#         torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-#     elif classname.find("BatchNorm2d") != -1:
-#         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
-#         torch.nn.init.constant_(m.bias.data, 0.0)
+def weights_init_normal(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find("BatchNorm3d") != -1:
+        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+        torch.nn.init.constant_(m.bias.data, 0.0)
 #
 
 class Generator(torch.nn.Module):
@@ -386,8 +386,8 @@ if cuda:
     adversarial_loss.cuda()
 
 # Initialize weights
-# generator.apply(weights_init_normal)
-# discriminator.apply(weights_init_normal)
+generator.apply(weights_init_normal)
+discriminator.apply(weights_init_normal)
 
 # Configure data loader
 os.makedirs("../../data/mnist", exist_ok=True)

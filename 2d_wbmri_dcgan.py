@@ -39,7 +39,7 @@ parser.add_argument("--lr", type=float, default=1e-5, help="adam: learning rate"
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
+parser.add_argument("--latent_dim", type=int, default=128, help="dimensionality of the latent space")
 parser.add_argument("--img_size", type=int, default=32, help="size of each image dimension")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=5, help="interval between image sampling")
@@ -406,8 +406,8 @@ os.makedirs("../../data/mnist", exist_ok=True)
 
 dataloader = torch.utils.data.DataLoader(
     MRIDataset(
-        csv_file="annotations_slices.csv",
-        root_dir="wbmri_slices",
+        csv_file="annotations_slices_best.csv",
+        root_dir="wbmri_slices_best",
         # transform=transforms.Compose(
         #     [transforms.Resize(opt.img_size), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
         # ),
@@ -532,9 +532,9 @@ for epoch in range(opt.n_epochs):
             im = gen_imgs.cpu().detach().numpy()[0, 0, 0, :, :]
             #imwrite("g_z/epoch_{}_batch_{}.png".format(epoch, i), (im*255).astype(np.uint8))
             matplotlib.image.imsave("g_z/epoch_{}_batch_{}.png".format(epoch, i), im, cmap='gray')
-            plt.imshow(im, cmap="gray")
-            plt.draw()
-            plt.pause(0.001)
+            # plt.imshow(im, cmap="gray")
+            # plt.draw()
+            # plt.pause(0.001)
 
         if batches_done % opt.model_save_interval == 0:
             torch.save(generator.state_dict(), "networks/mri_dcgan_generator_epoch_{}".format(epoch))

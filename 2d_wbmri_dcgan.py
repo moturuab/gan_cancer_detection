@@ -86,65 +86,56 @@ class Generator(torch.nn.Module):
         )  # (1, 2, 2)
 
         self.layer2 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 16, self.feature_size * 8, kernel_size=(3, 4, 4), stride=(2, 2, 2),
-                                     padding=(1, 0, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 8),
+            torch.nn.Conv2d(self.feature_size * 16, self.feature_size * 8, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size * 8),
             torch.nn.ReLU()
-        )  # (1, 6, 4)
+        )  # (1, , 4)
 
         self.layer3 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 8, kernel_size=(5, 4, 4), stride=(2, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 8),
+            torch.nn.Conv2d(self.feature_size * 8, self.feature_size * 8, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size * 8),
             torch.nn.ReLU()
         )  # (1, 12, 8)
         self.layer4 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 8, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(2, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 4),
+            torch.nn.Conv2d(self.feature_size * 8, self.feature_size * 4, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size * 4),
             torch.nn.ReLU()
         )  # (1, 24, 16)
 
         # keep z dim constant (at 8)
         self.layer5 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 4, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 0, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 4),
+            torch.nn.Conv2d(self.feature_size * 4, self.feature_size * 4, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size * 4),
             torch.nn.ReLU()
         )  # (1, 50, 32)
 
         self.layer6 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 4, self.feature_size * 2, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
+            torch.nn.Conv2d(self.feature_size * 4, self.feature_size * 2, kernel_size=3),
             torch.nn.BatchNorm3d(self.feature_size * 2),
             torch.nn.ReLU()
         )  # (1, 100, 64)
 
         self.layer7 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size * 2, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size * 2),
+            torch.nn.Conv2d(self.feature_size * 2, self.feature_size * 2, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size * 2),
             torch.nn.ReLU()
         )  # (1, 200, 128)
 
         self.layer8 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size * 2, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size),
+            torch.nn.Conv2d(self.feature_size * 2, self.feature_size, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size),
             torch.nn.ReLU()
         )  # (1, 400, 256)
 
         self.layer9 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size, self.feature_size, kernel_size=(5, 4, 4), stride=(1, 2, 2),
-                                     padding=(2, 1, 1)),
-            torch.nn.BatchNorm3d(self.feature_size),
+            torch.nn.Conv2d(self.feature_size, self.feature_size, kernel_size=3),
+            torch.nn.BatchNorm2d(self.feature_size),
             torch.nn.ReLU()
 
         )  # (1, 800, 512)
 
         self.layer10 = torch.nn.Sequential(
-            torch.nn.ConvTranspose3d(self.feature_size, 1, kernel_size=(5, 4, 5), stride=(1, 2, 1), padding=(2, 1, 2)),
-            # torch.nn.BatchNorm3d(self.feature_size),
+            torch.nn.Conv2d(self.feature_size, 1, kernel_size=3),
             torch.nn.Tanh()
         )  # (1, 1600, 512)
 
@@ -156,18 +147,29 @@ class Generator(torch.nn.Module):
         out = out.view(-1, self.feature_size * 16, 1, 2, 2)
         # print("after layer 1:",out.size())
 
+        out = F.interpolate(out, scale_factor=2, mode='nearest') # 4 x 4
+
         out = self.layer2(out)
         # print("after layer 2:",out.size())
+
+        out = F.interpolate(out, scale_factor=2, mode='nearest') # 8 x 8
+
         out = self.layer3(out)
         # print("after layer 3:",out.size()
 
+        out = F.interpolate(out, scale_factor=2, mode='nearest')  # 16 x 16
+
         out = self.layer4(out)
+
+        out = F.interpolate(out, scale_factor=3, mode='nearest')  # 32 x 32
 
         # print("after layer 4:",out.size())
         out = self.layer5(out)
+        out = F.interpolate(out, scale_factor=3, mode='nearest')  # 96 x 64
         # print("after layer 5:",out.size())
         #
         out = self.layer6(out)
+        out = F.interpolate(out, scale_factor=5, mode='nearest')  # 288 x 128
         # print("after layer 6:",out.size())
         out = self.layer7(out)
         # print("after layer 7:",out.size())
@@ -238,32 +240,39 @@ class Discriminator(nn.Module):
 
 
         self.layer1 = torch.nn.Sequential(
-            spectral_norm(torch.nn.Conv3d(1, self.feature_size, kernel_size=3, stride=2, padding=(1, 1, 1))),
-            torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
+            spectral_norm(torch.nn.Conv2d(1, self.feature_size, kernel_size=3)),
+            torch.nn.MaxPool2d(2),
             torch.nn.ReLU()
-        )  # (1, 400, 128)
+        )  # (1, 1440, 360)
 
         self.layer2 = torch.nn.Sequential(
-            spectral_norm(torch.nn.Conv3d(self.feature_size, self.feature_size * 2, kernel_size=3, stride=2, padding=(1, 1, 1))),
-            torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
+            spectral_norm(torch.nn.Conv2d(self.feature_size, self.feature_size*2, kernel_size=3)),
+            torch.nn.MaxPool2d(2),
             torch.nn.ReLU()
-        )  # (1, 100, 64)
+        )  # (1, 720, 180)
 
         self.layer4 = torch.nn.Sequential(
-            spectral_norm(torch.nn.Conv3d(self.feature_size * 2, self.feature_size * 4, kernel_size=3, stride=(1, 2, 1), padding=(1, 1, 1))),
-            torch.nn.MaxPool3d(kernel_size=(1, 2, 2)),
+            spectral_norm(torch.nn.Conv2d(self.feature_size*2, self.feature_size * 4, kernel_size=3)),
+            torch.nn.MaxPool2d(2),
             torch.nn.ReLU()
-        )  # (1, 25, 16)
+        )  # (1, 360, 90)
 
         self.layer5 = torch.nn.Sequential(
-            spectral_norm(torch.nn.Conv3d(self.feature_size * 4, self.feature_size * 8, kernel_size=3, stride=2, padding=(1, 0, 1))),
+            spectral_norm(torch.nn.Conv2d(self.feature_size * 4, self.feature_size * 8, kernel_size=3)),
+            torch.nn.MaxPool2d(3),
             torch.nn.ReLU()
-        )  # (1, 12, 8)
+        )  # (1, 120, 30)
+
+        self.layer5 = torch.nn.Sequential(
+            spectral_norm(torch.nn.Conv2d(self.feature_size * 4, self.feature_size * 8, kernel_size=3)),
+            torch.nn.MaxPool2d(3),
+            torch.nn.ReLU()
+        )  # (1, 40, 10)
 
         self.flatten = Flatten()
 
         self.fc1 = torch.nn.Sequential(
-            spectral_norm(torch.nn.Linear(self.feature_size * 8 * 12 * 8, 256, bias=True)),
+            spectral_norm(torch.nn.Linear(self.feature_size * 8 * 40 * 10, 256, bias=True)),
             torch.nn.ReLU()
         )
 

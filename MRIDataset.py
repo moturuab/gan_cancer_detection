@@ -32,11 +32,11 @@ class MRIDataset(Dataset):
         volume = np.load(volume_name)
         # annotations = self.annotations.iloc[index,0].as_matrix()
         # annotations = annotations.astype('float').reshape(-1,2)
-        sample = volume
+        sample = volume.reshape((1,volume.shape[0], volume.shape[1]))
 
         if self.transform:
             sample = self.transform(sample)
         
-        return sample
+        return torch.FloatTensor(sample)
 
 

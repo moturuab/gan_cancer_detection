@@ -4,11 +4,11 @@ from torchvision import transforms
 from MRIDataset import MRIDataset
 
 class Data_Loader():
-    def __init__(self, train, dataset, image_path, image_size, batch_size, shuf=True):
+    def __init__(self, train, dataset, image_path, batch_size, image_size=(1600,512), shuf=True):
         self.dataset = dataset
         self.path = image_path
-        self.im_height = image_size['height']
-        self.im_width = image_size['width']
+        self.im_height = image_size[0]
+        self.im_width = image_size[1]
         self.batch = batch_size
         self.shuf = shuf
         self.train = train
